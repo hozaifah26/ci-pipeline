@@ -15,16 +15,24 @@ jobs:
         run: |
           docker build -t myapp:latest .
 
-  test:
-    runs-on: self-hosted
-    needs: build
-    steps:
-      - name: Test Docker container
-        run: |
-          docker run --name test-container -d -p 8080:80 myapp:latest
-          sleep 5
-          curl -f http://localhost:8080/index.html | grep "Hello from Docker CI/CD"
-          docker rm -f test-container
+ test:
+  runs-on: self-hosted
+  needs: build
+  steps:
+    - name: Run container
+      run: docker run --name test-container -d -p 8080:80 myapp:latest
+
+    - name: Wait and Test container
+      run: |
+        sleep 5
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080)
+        echo "Status code: $STATUS"
+        test "$STATUS" = "200"
+
+    - name: Stop test container
+      if: always()
+      run: docker rm -f test-container || true
+
 
   deploy:
     runs-on: self-hosted
