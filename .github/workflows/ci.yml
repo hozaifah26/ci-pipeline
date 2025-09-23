@@ -1,54 +1,53 @@
-name: CI/CD Docker Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [ "main" ]
 
+
 jobs:
   build:
     runs-on: self-hosted
     steps:
-      - name: Checkout repo
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Build Docker image
+        run: docker build -t myapp:latest .
+
+  test:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - name: Remove old test container
+        run: docker rm -f test-container || true
+
+      - name: Run container for testing
+        run: docker run --name test-container -d -p 8888:80 myapp:latest
+
+      - name: Wait and Test container
         run: |
-          docker build -t myapp:latest .
+          for i in {1..6}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8888 || true)
+            echo "Try $i: Status code $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "App did not return 200 after 30s"
+          exit 1
 
-test:
-  runs-on: self-hosted
-  needs: build
-  steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - name: Stop test container
+        if: always()
+        run: docker rm -f test-container || true
 
-    - name: Remove old container if exists
-      run: docker rm -f test-container || true
-
-    - name: Run container
-      run: docker run --name test-container -d -p 8080:80 myapp:latest
-
-    - name: Wait and Test container
-      run: |
-        sleep 5
-        STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || true)
-        echo "Status code: $STATUS"
-        test "$STATUS" = "200"
-
-    - name: Stop and remove container
-      if: always()
-      run: docker rm -f test-container || true
-
-
-
-
-
-
-deploy:
+  deploy:
     runs-on: self-hosted
     needs: test
     steps:
-      - name: Deploy Docker container
-        run: |
-          docker rm -f myapp || true
-          docker run -d --name myapp -p 80:80 myapp:latest
+      - name: Remove old production container
+        run: docker rm -f myapp-container || true
+
+      - name: Run production container
+        run: docker run --name myapp-container -d -p 8080:80 myapp:latest
