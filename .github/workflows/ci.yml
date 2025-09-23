@@ -1,4 +1,4 @@
-name: Simple CI Pipeline
+name: CI Pipeline
 
 on:
   push:
@@ -11,14 +11,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Verify index.html
-      run: |
-        if [ ! -f index.html ]; then
-          echo " index.html is missing!"
-          exit 1
-        else
-          echo " index.html found!"
-        fi
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          echo "No dependencies for HTML file"
+
+      - name: Run tests
+        run: |
+          echo "Running simple test"
+          test -f index.html
