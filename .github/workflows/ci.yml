@@ -1,29 +1,36 @@
-name: CI Pipeline
+name: CI/CD Docker Pipeline
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: self-hosted
     steps:
-      - name: Checkout code
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
+      - name: Build Docker image
         run: |
-          echo "No dependencies for HTML file"
+          docker build -t myapp:latest .
 
-      - name: Run tests
+  test:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - name: Test Docker container
         run: |
-          echo "Running simple test"
-          test -f index.html
+          docker run --name test-container -d -p 8080:80 myapp:latest
+          sleep 5
+          curl -f http://localhost:8080/index.html | grep "Hello from Docker CI/CD"
+          docker rm -f test-container
+
+  deploy:
+    runs-on: self-hosted
+    needs: test
+    steps:
+      - name: Deploy Docker container
+        run: |
+          docker rm -f myapp || true
+          docker run -d --name myapp -p 80:80 myapp:latest
