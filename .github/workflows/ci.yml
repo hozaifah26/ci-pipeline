@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI Pipeline
 
 on:
   push:
@@ -10,44 +10,42 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build -t myapp:latest .
-
-  test:
-    runs-on: self-hosted
-    needs: build
-    steps:
-      - name: Remove old test container
-        run: docker rm -f test-container || true
-
-      - name: Run container for testing
-        run: docker run --name test-container -d -p 8888:80 myapp:latest
-
-      - name: Wait and Test container
-        run: |
-          for i in {1..6}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8888 || true)
-            echo "Try $i: Status code $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "App did not return 200 after 30s"
-          exit 1
-
-      - name: Stop test container
-        if: always()
-        run: docker rm -f test-container || true
+        run: docker build -t my-app .
 
   deploy:
     runs-on: self-hosted
-    needs: test
+    needs: build
     steps:
-      - name: Remove old production container
-        run: docker rm -f myapp-container || true
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Run production container
-        run: docker run --name myapp-container -d -p 8080:80 myapp:latest
+      - name: Run container on port 8080
+        run: |
+          docker build -t my-app .
+          docker run -d -p 8080:8080 --name my-app-container my-app
+
+  test:
+    runs-on: self-hosted
+    needs: deploy
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for container to be ready
+        run: |
+          for i in {1..10}; do
+            if curl -s http://localhost:8080 > /dev/null; then
+              echo "App is up!"
+              exit 0
+            fi
+            echo "Waiting for app..."
+            sleep 3
+          done
+          exit 1
+
+      - name: Run tests
+        run: |
+          curl -v http://localhost:8080   # Replace with actual test commands
