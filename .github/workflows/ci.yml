@@ -21,14 +21,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Remove container with same name if exists
       - name: Remove old container if exists
         run: |
           docker rm -f my-app-container || true
 
+      # Free port 8080 if already in use by another container
+      - name: Free port 8080 if already allocated
+        run: |
+          CONTAINER_ID=$(docker ps -q --filter "publish=8080")
+          if [ -n "$CONTAINER_ID" ]; then
+            echo "Port 8080 in use by container $CONTAINER_ID. Stopping it..."
+            docker rm -f $CONTAINER_ID
+          fi
+
       - name: Run container on port 8080
         run: |
           docker build -t my-app .
-          docker run -d -p 8080:8080 --name my-app-container my-app
+          docker run -d -p 8080:80 --name my-app-container my-app
 
   test:
     runs-on: self-hosted
@@ -52,3 +62,12 @@ jobs:
       - name: Run tests
         run: |
           curl -v http://localhost:8080   # Replace with actual test commands
+
+  cleanup:
+    runs-on: self-hosted
+    needs: test
+    if: always()
+    steps:
+      - name: Stop and remove container
+        run: |
+          docker rm -f my-app-container || true
